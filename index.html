@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>班级消息日历</title>
+<style>
+:root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --line: #e5e6eb;
+    --text: #1f2329;
+    --text-2: #646a73;
+    --text-3: #8f959e;
+    --primary: #185fa5;
+    --primary-hover: #134b83;
+    --primary-soft: #e8f2fc;
+    --danger: #a32d2d;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  #app { display: flex; flex-direction: column; height: 100vh; }
+
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding: 12px 20px;
+    background: var(--card); border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    background: var(--primary); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 500;
+  }
+  .brand h1 { margin: 0; font-size: 15px; font-weight: 500; }
+  .brand p { margin: 0; font-size: 12px; color: var(--text-3); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .btn {
+    font: inherit; font-size: 13px; cursor: pointer;
+    border-radius: 8px; padding: 7px 14px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+    transition: background .15s, border-color .15s;
+  }
+  .btn:hover { background: #f2f3f5; }
+  .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .btn.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+  .btn.ghost { color: var(--text-2); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.sm { padding: 4px 10px; font-size: 12px; }
+
+  .layout { flex: 1; display: flex; gap: 16px; padding: 16px 20px; overflow: hidden; }
+  .calendar-wrap {
+    flex: 1; min-width: 0; background: var(--card);
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px; overflow: auto;
+  }
+  #calendar { height: 100%; min-height: 460px; }
+
+  .side {
+    width: 300px; flex-shrink: 0; display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .side-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+  .side-head h2 { margin: 0; font-size: 14px; font-weight: 500; }
+  .side-head p { margin: 2px 0 0; font-size: 12px; color: var(--text-3); }
+  .side-body { flex: 1; overflow: auto; padding: 8px; }
+
+  .item {
+    display: flex; gap: 10px; padding: 10px;
+    border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+  }
+  .item:hover { background: #f7f8fa; border-color: var(--line); }
+  .item .dot {
+    width: 4px; border-radius: 2px; background: var(--primary); flex-shrink: 0;
+  }
+  .item.is-allday .dot { background: #ba7517; }
+  .item .body { min-width: 0; flex: 1; }
+  .item .t { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .m { font-size: 12px; color: var(--text-3); }
+  .item .place { font-size: 12px; color: var(--text-2); }
+
+  .empty { padding: 40px 20px; text-align: center; color: var(--text-3); }
+  .empty p { margin: 8px 0; font-size: 13px; }
+
+  .mask {
+    position: fixed; inset: 0; background: rgba(15, 20, 26, .45);
+    display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 50;
+  }
+  .modal {
+    background: var(--card); border-radius: 12px; width: 100%; max-width: 720px;
+    max-height: 88vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal.narrow { max-width: 460px; }
+  .modal-head {
+    padding: 16px 20px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-head h2 { margin: 0; font-size: 15px; font-weight: 500; }
+  .modal-head .x {
+    border: none; background: none; font-size: 20px; line-height: 1; cursor: pointer;
+    color: var(--text-3); padding: 4px 8px; border-radius: 6px;
+  }
+  .modal-head .x:hover { background: #f2f3f5; color: var(--text); }
+  .modal-body { padding: 18px 20px; overflow: auto; }
+  .modal-foot {
+    padding: 14px 20px; border-top: 1px solid var(--line);
+    display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
+  }
+  .modal-foot .left { margin-right: auto; }
+
+  .hint { font-size: 12px; color: var(--text-2); margin: 0 0 10px; }
+  .hint.warn { color: #854f0b; background: #faeeda; padding: 8px 12px; border-radius: 8px; }
+
+  textarea {
+    width: 100%; font: inherit; font-size: 13px; line-height: 1.7;
+    border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+    resize: vertical; background: #fbfbfc; color: var(--text);
+  }
+  textarea:focus, input:focus { outline: none; border-color: var(--primary); background: #fff; }
+  textarea.tall { min-height: 200px; }
+  textarea.short { min-height: 96px; }
+  input[type="text"], input[type="password"], input[type="date"], input[type="time"] {
+    font: inherit; font-size: 13px; border: 1px solid var(--line);
+    border-radius: 7px; padding: 6px 9px; background: #fbfbfc; color: var(--text);
+  }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; margin-bottom: 6px; }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  .row.end { justify-content: flex-end; }
+  .spacer { flex: 1; }
+
+  details { margin-top: 14px; border-top: 1px dashed var(--line); padding-top: 12px; }
+  details summary { cursor: pointer; font-size: 13px; color: var(--primary); }
+
+  .draft { display: flex; flex-direction: column; gap: 8px; }
+  .draft-item {
+    display: grid; grid-template-columns: 22px 120px 92px 1fr 120px 28px;
+    gap: 8px; align-items: center;
+    padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fbfbfc;
+  }
+  .draft-item input[type="text"], .draft-item input[type="date"], .draft-item input[type="time"] { width: 100%; }
+  .draft-item .del {
+    border: none; background: none; cursor: pointer; color: var(--text-3);
+    font-size: 17px; line-height: 1; border-radius: 6px; padding: 2px;
+  }
+  .draft-item .del:hover { color: var(--danger); background: #fcebeb; }
+  .draft-item.off { opacity: .45; }
+  .raw { grid-column: 2 / 6; font-size: 12px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .status { font-size: 13px; color: var(--text-2); }
+  .status.err { color: var(--danger); }
+  .spin { display: inline-block; width: 13px; height: 13px; border: 2px solid var(--primary-soft); border-top-color: var(--primary); border-radius: 50%; animation: sp .8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
+  .fc { --fc-border-color: #e5e6eb; --fc-today-bg-color: #e8f2fc; --fc-page-bg-color: #fff; --fc-neutral-bg-color: #f7f8fa; }
+  .fc .fc-button { font-size: 12px; padding: 5px 10px; text-transform: none; box-shadow: none !important; }
+  .fc .fc-button-primary { background: #fff; border-color: var(--line); color: var(--text); }
+  .fc .fc-button-primary:hover { background: #f2f3f5; border-color: var(--line); color: var(--text); }
+  .fc .fc-button-primary:not(:disabled).fc-button-active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .fc .fc-toolbar-title { font-size: 16px; font-weight: 500; }
+  .fc .fc-daygrid-event { border-radius: 5px; padding: 1px 4px; font-size: 12px; }
+  .fc-event { cursor: pointer; }
+
+  @media (max-width: 900px) {
+    .layout { flex-direction: column; }
+    .side { width: 100%; max-height: 240px; }
+    .draft-item { grid-template-columns: 22px 1fr 28px; }
+    .draft-item .f-date, .draft-item .f-time, .draft-item .f-place { grid-column: 2 / 3; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">日</div>
+      <div>
+        <h1>班级消息日历</h1>
+        <p>{{ events.length }} 条日程 · 数据只存在本机浏览器</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" @click="openSettings">设置</button>
+      <button class="btn ghost" @click="exportICS" :disabled="!events.length">导出 .ics</button>
+      <button class="btn primary" @click="openImport">导入群消息</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="calendar-wrap">
+      <div id="calendar"></div>
+    </section>
+
+    <aside class="side">
+      <div class="side-head">
+        <h2>即将到来</h2>
+        <p>{{ upcoming.length ? '未来 10 天内有 ' + upcoming.length + ' 件事' : '未来 10 天暂无安排' }}</p>
+      </div>
+      <div class="side-body">
+        <div v-if="!upcoming.length" class="empty">
+          <p>还没有日程</p>
+          <p>点右上角「导入群消息」，把班委发的通知粘进来</p>
+        </div>
+        <div v-for="e in upcoming" :key="e.id"
+             class="item" :class="{ 'is-allday': !e.time }" @click="showDetail(e)">
+          <div class="dot"></div>
+          <div class="body">
+            <div class="t">{{ e.title }}</div>
+            <div class="m">{{ dayLabel(e) }}</div>
+            <div class="place" v-if="e.place">{{ e.place }}</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 导入面板 -->
+  <div class="mask" v-if="ui.import" @click.self="closeImport">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>{{ ui.step === 'input' ? '导入群消息' : '确认解析结果' }}</h2>
+        <button class="x" @click="closeImport">&times;</button>
+      </div>
+
+      <div class="modal-body" v-if="ui.step === 'input'">
+        <p class="hint">
+          把 QQ 群里班委发的通知复制粘贴到下面，可以一次贴多条（手机端长按消息可多选复制，电脑端直接框选）。
+        </p>
+        <textarea class="tall" v-model="importText"
+          placeholder="【通知】本周五下午3点在教学楼B203开班会，请准时参加&#10;@全体成员 10月20日前提交社会实践报告，交给我或班长&#10;下周三上午9点英语四级模拟考试，考场另行通知"></textarea>
+
+        <div class="row">
+          <button class="btn ghost sm" @click="fillSample">填入示例</button>
+          <button class="btn ghost sm" @click="copyPrompt">复制解析提示词</button>
+          <div class="spacer"></div>
+          <span class="status" :class="{ err: ui.error }" v-if="ui.status">{{ ui.status }}</span>
+          <button class="btn primary" @click="parseWithAI" :disabled="ui.busy || !importText.trim()">
+            <span v-if="ui.busy" class="spin"></span>{{ ui.busy ? '解析中' : '智能解析' }}
+          </button>
+        </div>
+
+        <details>
+          <summary>没有配置 API Key？用任意 AI 解析后把结果粘回来</summary>
+          <p class="hint" style="margin-top:10px">
+            流程：点上面的「复制解析提示词」→ 粘贴给任意对话式 AI（DeepSeek 网页版、ChatGPT、本助手都行）→ 把 AI 返回的 JSON 粘到下面 → 导入。
+          </p>
+          <textarea class="short" v-model="manualJson"
+            placeholder='粘贴 AI 返回的 JSON，例如：{"events":[{"date":"2026-10-17","time":"15:00","title":"班会","place":"教学楼B203","raw":"本周五下午3点开班会"}]}'></textarea>
+          <div class="row end">
+            <button class="btn ghost" @click="parseManualJson" :disabled="!manualJson.trim()">导入这段 JSON</button>
+          </div>
+        </details>
+      </div>
+
+      <div class="modal-body" v-else>
+        <p class="hint">共解析出 {{ draft.length }} 条，可直接修改日期、时间、标题，取消勾选可跳过。</p>
+        <div class="draft">
+          <div v-for="(d, i) in draft" :key="i" class="draft-item" :class="{ off: !d._keep }">
+            <input type="checkbox" v-model="d._keep">
+            <input class="f-date" type="date" v-model="d.date">
+            <input class="f-time" type="time" v-model="d.time">
+            <input class="f-title" type="text" v-model="d.title" placeholder="事项标题">
+            <input class="f-place" type="text" v-model="d.place" placeholder="地点（可空）">
+            <button class="del" @click="draft.splice(i, 1)" title="删除">&times;</button>
+            <div class="raw" v-if="d.raw">{{ d.raw }}</div>
+          </div>
+        </div>
+        <div v-if="!draft.length" class="empty"><p>没有可导入的日程</p></div>
+      </div>
+
+      <div class="modal-foot" v-if="ui.step === 'preview'">
+        <button class="btn ghost left" @click="ui.step = 'input'">返回修改原文</button>
+        <button class="btn ghost" @click="closeImport">取消</button>
+        <button class="btn primary" @click="confirmImport" :disabled="!keepCount">
+          加入日历（{{ keepCount }} 条）
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 详情 -->
+  <div class="mask" v-if="ui.detail" @click.self="ui.detail = null">
+    <div class="modal narrow">
+      <div class="modal-head">
+        <h2>日程详情</h2>
+        <button class="x" @click="ui.detail = null">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label>时间</label>
+          <div>{{ dayLabel(ui.detail) }}{{ ui.detail.time ? ' ' + ui.detail.time : '' }}</div>
+        </div>
+        <div class="field">
+          <label>事项</label>
+          <div>{{ ui.detail.title }}</div>
+        </div>
+        <div class="field" v-if="ui.detail.place">
+          <label>地点</label>
+          <div>{{ ui.detail.place }}</div>
+        </div>
+        <div class="field" v-if="ui.detail.raw">
+          <label>群消息原文</label>
+          <div style="color:var(--text-2);font-size:13px">{{ ui.detail.raw }}</div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost left" @click="removeEvent(ui.detail)">删除这条日程</button>
+        <button class="btn primary" @click="ui.detail = null">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div class="mask" v-if="ui.settings" @click.self="ui.settings = false">
+    <div class="modal narrow">
+      <div class="modal-head">
+        <h2>设置</h2>
+        <button class="x" @click="ui.settings = false">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label>DeepSeek API Key</label>
+          <input type="password" v-model="apiKey" placeholder="sk-..." style="width:100%">
+        </div>
+        <p class="hint">
+          仅保存在你本机的浏览器中，不会上传到任何服务器。可在 platform.deepseek.com 创建。
+          解析一次班级群消息的成本通常不到一分钱。
+        </p>
+        <p class="hint warn">
+          导出与分享：本文件请勿连同其它敏感信息一起公开。若把 API Key 填在共享设备上，使用完请清空。
+        </p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost left" @click="clearAll">清空全部日程</button>
+        <button class="btn primary" @click="saveKey">保存</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/fullcalendar.global.min.js"></script>
+<script src="vendor/fullcalendar-zh-cn.global.min.js"></script>
+<script>
+(function () {
+  const { createApp, ref, computed, watch, onMounted, nextTick } = Vue;
+  const LS_EVENTS = 'classmsg_calendar_events_v1';
+  const LS_KEY = 'classmsg_calendar_apikey_v1';
+  const API_URL = 'https://api.deepseek.com/chat/completions';
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function fmtDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayStr() { return fmtDate(new Date()); }
+  function weekdayCN(d) { return '星期' + '日一二三四五六'[d.getDay()]; }
+  function uid() { return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+  function buildPrompt(text) {
+    const now = new Date();
+    const nowStr = fmtDate(now) + ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+    return [
+      '下面是一段 QQ 班级群的聊天记录，请从中抽取所有「带时间信息的活动或事项」。',
+      '',
+      '【当前时间】' + nowStr + '（' + weekdayCN(now) + '）',
+      '',
+      '规则：',
+      '1. 把"明天""下周三""本周五"等相对时间，基于【当前时间】换算成绝对日期。',
+      '2. 只有日期没有具体时刻的（如"10月20日前提交"），time 字段填空字符串。',
+      '3. 忽略纯闲聊、表情、无时间信息的消息。',
+      '4. 标题控制在 15 字以内，地点没有就填空字符串。',
+      '5. 只输出 JSON，不要任何解释或代码块标记。',
+      '',
+      '输出格式（严格遵守）：',
+      '{"events":[{"date":"YYYY-MM-DD","time":"HH:MM 或空字符串","title":"事项标题","place":"地点或空字符串","raw":"对应的群消息原文片段"}]}',
+      '',
+      '聊天记录：',
+      '---',
+      text,
+      '---'
+    ].join('\n');
+  }
+
+  function normalizeEvents(obj) {
+    let list = [];
+    if (Array.isArray(obj)) list = obj;
+    else if (obj && Array.isArray(obj.events)) list = obj.events;
+    else if (obj && Array.isArray(obj.data)) list = obj.data;
+    if (!list.length) throw new Error('返回内容里没有 events 数组');
+    return list.map(function (r) {
+      return {
+        _keep: true,
+        date: String(r.date || '').slice(0, 10),
+        time: String(r.time || '').slice(0, 5),
+        title: String(r.title || '').trim(),
+        place: String(r.place || '').trim(),
+        raw: String(r.raw || '').trim()
+      };
+    }).filter(function (r) { return /^\d{4}-\d{2}-\d{2}$/.test(r.date) && r.title; });
+  }
+
+  function extractJson(raw) {
+    let s = String(raw || '').trim();
+    s = s.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    try { return JSON.parse(s); } catch (e) {}
+    const a = s.indexOf('{'), b = s.lastIndexOf('}');
+    if (a >= 0 && b > a) { try { return JSON.parse(s.slice(a, b + 1)); } catch (e) {} }
+    const c = s.indexOf('['), d = s.lastIndexOf(']');
+    if (c >= 0 && d > c) { try { return JSON.parse(s.slice(c, d + 1)); } catch (e) {} }
+    throw new Error('无法从返回内容中解析出 JSON');
+  }
+
+  function icsEscape(s) {
+    return String(s == null ? '' : s)
+      .replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,')
+      .replace(/\r?\n/g, '\\n');
+  }
+  function foldLine(line) {
+    const enc = new TextEncoder();
+    let out = '', cur = '';
+    for (const ch of line) {
+      if (enc.encode(cur + ch).length > 73) { out += cur + '\r\n '; cur = ch; }
+      else cur += ch;
+    }
+    return out + cur;
+  }
+  function stampUTC() {
+    const d = new Date();
+    return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + 'T' +
+      pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z';
+  }
+  function toICS(events) {
+    const now = stampUTC();
+    const lines = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0',
+      'PRODID:-//ClassMsg Calendar//CN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      'X-WR-CALNAME:班级消息日历'
+    ];
+    events.forEach(function (e) {
+      const day = e.date.replace(/-/g, '');
+      lines.push('BEGIN:VEVENT');
+      lines.push('UID:' + e.id + '@classmsg-calendar');
+      lines.push('DTSTAMP:' + now);
+      if (e.time) {
+        const hm = e.time.replace(':', '') + '00';
+        const h = parseInt(e.time.slice(0, 2), 10);
+        const endH = pad(Math.min(h + 1, 23)) + e.time.slice(3, 5) + '00';
+        lines.push('DTSTART:' + day + 'T' + hm);
+        lines.push('DTEND:' + day + 'T' + endH);
+      } else {
+        const dt = new Date(e.date + 'T00:00:00');
+        dt.setDate(dt.getDate() + 1);
+        lines.push('DTSTART;VALUE=DATE:' + day);
+        lines.push('DTEND;VALUE=DATE:' + fmtDate(dt).replace(/-/g, ''));
+      }
+      lines.push('SUMMARY:' + icsEscape(e.title));
+      if (e.place) lines.push('LOCATION:' + icsEscape(e.place));
+      if (e.raw) lines.push('DESCRIPTION:' + icsEscape(e.raw));
+      lines.push('END:VEVENT');
+    });
+    lines.push('END:VCALENDAR');
+    return lines.map(foldLine).join('\r\n');
+  }
+
+  createApp({
+    setup() {
+      const events = ref([]);
+      const importText = ref('');
+      const manualJson = ref('');
+      const apiKey = ref('');
+      const draft = ref([]);
+      const ui = ref({ import: false, settings: false, detail: null, step: 'input', busy: false, status: '', error: false });
+      let cal = null;
+
+      try { events.value = JSON.parse(localStorage.getItem(LS_EVENTS) || '[]') || []; } catch (e) { events.value = []; }
+      apiKey.value = localStorage.getItem(LS_KEY) || '';
+
+      function persist() { localStorage.setItem(LS_EVENTS, JSON.stringify(events.value)); }
+
+      const fcEvents = computed(function () {
+        return events.value.map(function (e) {
+          return {
+            id: e.id, title: e.title,
+            start: e.time ? e.date + 'T' + e.time + ':00' : e.date,
+            allDay: !e.time,
+            extendedProps: { place: e.place, raw: e.raw }
+          };
+        });
+      });
+
+      function syncCalendar() {
+        if (!cal) return;
+        cal.removeAllEvents();
+        fcEvents.value.forEach(function (ev) { cal.addEvent(ev); });
+      }
+
+      const upcoming = computed(function () {
+        const today = todayStr();
+        const limit = new Date(); limit.setDate(limit.getDate() + 10);
+        const lim = fmtDate(limit);
+        return events.value
+          .filter(function (e) { return e.date >= today && e.date <= lim; })
+          .slice().sort(function (a, b) {
+            return (a.date + (a.time || '99:99')).localeCompare(b.date + (b.time || '99:99'));
+          });
+      });
+
+      const keepCount = computed(function () { return draft.value.filter(function (d) { return d._keep; }).length; });
+
+      function dayLabel(e) {
+        const today = todayStr();
+        const d = new Date(today + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        const tomorrow = fmtDate(d);
+        if (e.date === today) return '今天';
+        if (e.date === tomorrow) return '明天';
+        const p = e.date.split('-');
+        return parseInt(p[1], 10) + '月' + parseInt(p[2], 10) + '日 ' + weekdayCN(new Date(e.date + 'T00:00:00'));
+      }
+
+      function openImport() { ui.value.import = true; ui.value.step = 'input'; ui.value.status = ''; ui.value.error = false; }
+      function closeImport() { ui.value.import = false; }
+      function openSettings() { ui.value.settings = true; }
+      function saveKey() { localStorage.setItem(LS_KEY, apiKey.value.trim()); ui.value.settings = false; }
+      function showDetail(e) { ui.value.detail = e; }
+
+      function removeEvent(e) {
+        events.value = events.value.filter(function (x) { return x.id !== e.id; });
+        persist(); syncCalendar(); ui.value.detail = null;
+      }
+
+      function clearAll() {
+        if (!confirm('确定清空全部日程吗？此操作不可撤销。')) return;
+        events.value = []; persist(); syncCalendar(); ui.value.settings = false;
+      }
+
+      function fillSample() {
+        importText.value = [
+          '【班会通知】本周五下午3点在教学楼B203开班会，请全体同学准时参加，记得带上笔记本。',
+          '@全体成员 10月20日前把社会实践报告的电子版发给我，迟交扣分。',
+          '下周三上午9点英语四级模拟考试，考场安排稍后通知。',
+          '哈哈哈昨天那个球赛太精彩了',
+          '有同学问的教材，我放群里链接了，需要的自取'
+        ].join('\n');
+      }
+
+      function copyPrompt() {
+        const p = buildPrompt(importText.value.trim() || '（把群消息粘贴到这段文字的下面）');
+        navigator.clipboard.writeText(p).then(function () {
+          ui.value.status = '提示词已复制，粘贴给任意 AI 即可'; ui.value.error = false;
+        }).catch(function () {
+          ui.value.status = '复制失败，请手动选择文本复制'; ui.value.error = true;
+        });
+      }
+
+      async function parseWithAI() {
+        const key = (apiKey.value || '').trim();
+        if (!key) {
+          ui.value.status = '请先在「设置」中填入 DeepSeek API Key，或用下方的 AI 手动解析'; ui.value.error = true;
+          return;
+        }
+        ui.value.busy = true; ui.value.status = '正在调用大模型解析…'; ui.value.error = false;
+        try {
+          const res = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+            body: JSON.stringify({
+              model: 'deepseek-chat',
+              messages: [
+                { role: 'system', content: '你是日程信息抽取助手，只输出 JSON 对象，不要输出任何其他内容。' },
+                { role: 'user', content: buildPrompt(importText.value.trim()) }
+              ],
+              response_format: { type: 'json_object' },
+              temperature: 0.1,
+              max_tokens: 2000
+            })
+          });
+          if (!res.ok) {
+            const t = await res.text();
+            throw new Error('接口返回 ' + res.status + '：' + t.slice(0, 200));
+          }
+          const data = await res.json();
+          const content = data.choices && data.choices[0] && data.choices[0].message.content;
+          draft.value = normalizeEvents(extractJson(content));
+          if (!draft.value.length) {
+            ui.value.status = '没有解析出带时间的日程，检查一下消息里是否有具体时间'; ui.value.error = true;
+          } else {
+            ui.value.status = ''; ui.value.step = 'preview';
+          }
+        } catch (err) {
+          ui.value.status = '解析失败：' + (err && err.message ? err.message : err); ui.value.error = true;
+        } finally {
+          ui.value.busy = false;
+        }
+      }
+
+      function parseManualJson() {
+        try {
+          draft.value = normalizeEvents(extractJson(manualJson.value));
+          if (!draft.value.length) throw new Error('没有可导入的日程');
+          ui.value.status = ''; ui.value.error = false; ui.value.step = 'preview';
+        } catch (err) {
+          ui.value.status = '导入失败：' + (err && err.message ? err.message : err); ui.value.error = true;
+        }
+      }
+
+      function confirmImport() {
+        const add = draft.value.filter(function (d) { return d._keep; }).map(function (d) {
+          return { id: uid(), date: d.date, time: d.time, title: d.title, place: d.place, raw: d.raw };
+        });
+        events.value = events.value.concat(add);
+        persist(); syncCalendar();
+        draft.value = []; importText.value = ''; manualJson.value = '';
+        ui.value.import = false; ui.value.step = 'input'; ui.value.status = '';
+      }
+
+      function exportICS() {
+        const blob = new Blob(['\ufeff' + toICS(events.value)], { type: 'text/calendar;charset=utf-8' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = '班级日程_' + todayStr() + '.ics';
+        document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      }
+
+      onMounted(function () {
+        nextTick(function () {
+          const el = document.getElementById('calendar');
+          cal = new FullCalendar.Calendar(el, {
+            initialView: 'dayGridMonth',
+            locale: 'zh-cn',
+            firstDay: 1,
+            height: '100%',
+            dayMaxEvents: 4,
+            headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
+            buttonText: { today: '今天', month: '月', list: '列表' },
+            events: fcEvents.value,
+            eventClick: function (info) {
+              const e = events.value.find(function (x) { return x.id === info.event.id; });
+              if (e) showDetail(e);
+            },
+            dateClick: function (info) {
+              const title = prompt('在 ' + info.dateStr + ' 添加日程，请输入事项：');
+              if (!title) return;
+              events.value.push({ id: uid(), date: info.dateStr, time: '', title: title.trim(), place: '', raw: '手动添加' });
+              persist(); syncCalendar();
+            }
+          });
+          cal.render();
+        });
+      });
+
+      watch(events, function () { nextTick(syncCalendar); });
+
+      return {
+        events, importText, manualJson, apiKey, draft, ui, upcoming, keepCount,
+        dayLabel, openImport, closeImport, openSettings, saveKey, showDetail,
+        removeEvent, clearAll, fillSample, copyPrompt, parseWithAI,
+        parseManualJson, confirmImport, exportICS
+      };
+    }
+  }).mount('#app');
+})();
+</script>
+</body>
+</html>
